@@ -33,7 +33,7 @@ For best results, play Apple Music in a single browser and select that browser a
 ### 2. Install
 
 ```bash
-git clone https://github.com/your-username/apple-music-discord.git
+git clone https://github.com/jcarolyn/apple-music-discord.git
 cd apple-music-discord
 python -m venv .venv
 .venv\Scripts\activate
