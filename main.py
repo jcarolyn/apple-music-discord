@@ -97,9 +97,10 @@ def get_media_info() -> dict | None:
 _art_cache: dict[str, str] = {}
 
 
-def get_album_art(title: str, artist: str) -> str | None:
+def get_album_art(title: str, artist: str, album: str = "") -> str | None:
     """Look up album cover URL from the iTunes Search API.
 
+    Tries song-level search first, then falls back to album search.
     Results are cached in memory. Lookup failures are not cached so they
     can be retried on the next poll.
     """
@@ -107,10 +108,24 @@ def get_album_art(title: str, artist: str) -> str | None:
     if cache_key in _art_cache:
         return _art_cache[cache_key]
 
+    art_url = _itunes_search(f"{artist} {title}", "song")
+    if not art_url and album:
+        art_url = _itunes_search(f"{artist} {album}", "album")
+
+    if art_url:
+        if len(_art_cache) >= ART_CACHE_MAX:
+            _art_cache.pop(next(iter(_art_cache)))
+        _art_cache[cache_key] = art_url
+    return art_url
+
+
+def _itunes_search(term: str, entity: str) -> str | None:
+    """Query the iTunes Search API and return the artwork URL if found."""
     try:
         query = urllib.parse.urlencode({
-            "term": f"{artist} {title}",
+            "term": term,
             "media": "music",
+            "entity": entity,
             "limit": "1",
         })
         url = f"{ITUNES_SEARCH_URL}?{query}"
@@ -122,13 +137,9 @@ def get_album_art(title: str, artist: str) -> str | None:
 
         if data.get("resultCount", 0) > 0:
             art_url = data["results"][0].get("artworkUrl100", "")
-            art_url = art_url.replace("100x100bb", "600x600bb")
-            if len(_art_cache) >= ART_CACHE_MAX:
-                _art_cache.pop(next(iter(_art_cache)))
-            _art_cache[cache_key] = art_url
-            return art_url
+            return art_url.replace("100x100bb", "600x600bb")
     except Exception as exc:
-        log.debug("Album art lookup failed: %s", exc)
+        log.debug("iTunes search failed (%s): %s", entity, exc)
     return None
 
 
@@ -198,7 +209,7 @@ class DiscordPresence:
             state += f" on {track['album']}"
         state = state[:128]
 
-        art_url = get_album_art(track["title"], track["artist"])
+        art_url = get_album_art(track["title"], track["artist"], track["album"])
 
         try:
             self.rpc.update(
