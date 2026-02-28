@@ -142,12 +142,26 @@ class DiscordPresence:
                 or track["artist"] != self._last_track["artist"]
                 or track["paused"] != self._last_track["paused"]):
             return True
-        # Detect seek: position jumped significantly vs expected
-        if not track["paused"] and not self._last_track["paused"]:
-            expected = self._last_track["position"] + (time.time() - self._last_track["_update_time"])
-            diff = abs(track["position"] - expected)
-            if diff > 10:
+
+        if not track["paused"] and "_update_time" in self._last_track:
+            elapsed_real = time.time() - self._last_track["_update_time"]
+
+            # Wake from sleep: poll gap much larger than expected
+            if elapsed_real > POLL_INTERVAL * 3:
+                log.info("Detected wake from sleep, refreshing timestamp")
                 return True
+
+            # Detect seek or song repeat: position jumped vs expected
+            expected = self._last_track["position"] + elapsed_real
+            diff = track["position"] - expected
+            # Position jumped forward/backward significantly
+            if abs(diff) > 10:
+                return True
+            # Song restarted (position near 0 but we expected further along)
+            if track["position"] < 5 and expected > 15:
+                log.info("Detected song restart/repeat")
+                return True
+
         return False
 
     def update(self, track: dict | None):
