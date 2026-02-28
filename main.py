@@ -1,4 +1,4 @@
-"""Apple Music -> Discord Rich Presence
+"""Apple Music Discord Presence
 
 Displays the currently playing Apple Music track as Discord Rich Presence
 on Windows, including song title, artist, album, and album cover art.
@@ -67,7 +67,7 @@ log = logging.getLogger("apple-music-discord")
 
 # Supported browser source IDs for the Windows Media Session API.
 # Only media from these sources will be detected.
-ALLOWED_SOURCES = {"msedge"}  # TODO: add chrome.exe, firefox.exe after testing
+ALLOWED_SOURCES = {"msedge", "chrome.exe", "firefox.exe"}
 
 _MEDIA_SCRIPT = r"""
 import asyncio, json, sys
@@ -328,7 +328,7 @@ def main():
 
     presence = DiscordPresence(DISCORD_APP_ID)
 
-    log.info("Apple Music -> Discord Rich Presence")
+    log.info("Apple Music Discord Presence")
     log.info("Polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL)
 
     try:
