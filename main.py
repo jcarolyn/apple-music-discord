@@ -138,7 +138,9 @@ def _itunes_search(artist: str, title: str) -> str | None:
 
         for result in data.get("results", []):
             result_artist = result.get("artistName", "")
-            if _artist_matches(artist, result_artist):
+            result_title = result.get("trackName", "")
+            if _fuzzy_match(artist, result_artist) and \
+               _fuzzy_match(title, result_title):
                 art_url = result.get("artworkUrl100", "")
                 return art_url.replace("100x100bb", "600x600bb")
     except Exception as exc:
@@ -159,17 +161,21 @@ def _deezer_search(artist: str, title: str) -> str | None:
 
         for result in data.get("data", []):
             result_artist = result.get("artist", {}).get("name", "")
-            if _artist_matches(artist, result_artist):
+            result_title = result.get("title", "")
+            if _fuzzy_match(artist, result_artist) and \
+               _fuzzy_match(title, result_title):
                 return result.get("album", {}).get("cover_big", None)
     except Exception as exc:
         log.debug("Deezer search failed: %s", exc)
     return None
 
 
-def _artist_matches(expected: str, actual: str) -> bool:
-    """Check if the returned artist reasonably matches the expected one."""
-    return expected.lower().strip() in actual.lower().strip() or \
-           actual.lower().strip() in expected.lower().strip()
+def _fuzzy_match(expected: str, actual: str) -> bool:
+    """Check if two strings reasonably match, ignoring case and punctuation."""
+    def normalize(s: str) -> str:
+        return "".join(c.lower() for c in s if c.isalnum() or c == " ").strip()
+    a, b = normalize(expected), normalize(actual)
+    return a in b or b in a
 
 
 # -- Discord presence -------------------------------------------------------- #
