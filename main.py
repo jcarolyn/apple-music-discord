@@ -389,8 +389,12 @@ def main():
             else:
                 print(f"  {i}. {src}")
         print(f"  {len(sources) + 1}. All sources (no filter)")
+        print(f"  0. Exit")
 
-        choice = input(f"\nSelect a source [1-{len(sources) + 1}]: ").strip()
+        choice = input(f"\nSelect a source [0-{len(sources) + 1}]: ").strip()
+        if choice == "0":
+            print("Exiting.")
+            sys.exit(0)
         try:
             idx = int(choice)
             if 1 <= idx <= len(sources):
@@ -404,8 +408,10 @@ def main():
             log.info("No filter, detecting all sources")
     else:
         print("\nNo active media sources found. Play something first,")
-        print("or press Enter to start without a filter.")
-        input()
+        print("or press Enter to start without a filter, or type 'exit' to quit.")
+        choice = input().strip().lower()
+        if choice == "exit":
+            sys.exit(0)
         _selected_source = None
 
     presence = DiscordPresence(DISCORD_APP_ID)
