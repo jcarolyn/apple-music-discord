@@ -4,6 +4,8 @@ import os
 import subprocess
 import sys
 import time
+import urllib.parse
+import urllib.request
 
 from dotenv import load_dotenv
 from pypresence import Presence
@@ -14,10 +16,12 @@ load_dotenv()
 DISCORD_APP_ID = os.getenv("DISCORD_APP_ID")
 POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "5"))
 
-APPLE_MUSIC_IMAGE = (
+APPLE_MUSIC_ICON = (
     "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/"
     "Apple_Music_icon.svg/512px-Apple_Music_icon.svg.png"
 )
+
+ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
 
 logging.basicConfig(
     level=logging.INFO,
@@ -84,6 +88,40 @@ def get_media_info() -> dict | None:
     except Exception as exc:
         log.warning("Media detection error: %s", exc)
         return None
+
+
+# -- Album art via iTunes Search API ----------------------------------------- #
+
+_art_cache: dict[str, str] = {}
+
+
+def get_album_art(title: str, artist: str) -> str | None:
+    """Look up album cover URL from the iTunes Search API."""
+    cache_key = f"{title}|{artist}"
+    if cache_key in _art_cache:
+        return _art_cache[cache_key]
+
+    try:
+        query = urllib.parse.urlencode({
+            "term": f"{artist} {title}",
+            "media": "music",
+            "limit": "1",
+        })
+        url = f"{ITUNES_SEARCH_URL}?{query}"
+        req = urllib.request.Request(url, headers={"User-Agent": "AppleMusicDiscord/1.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+
+        if data.get("resultCount", 0) > 0:
+            art_url = data["results"][0].get("artworkUrl100", "")
+            # upscale to 600x600
+            art_url = art_url.replace("100x100bb", "600x600bb")
+            _art_cache[cache_key] = art_url
+            return art_url
+    except Exception as exc:
+        log.debug("Album art lookup failed: %s", exc)
+
+    return None
 
 
 # -- Discord presence -------------------------------------------------------- #
@@ -155,16 +193,19 @@ class DiscordPresence:
             state += " on " + track["album"]
         state = state[:128]
 
+        art_url = get_album_art(track["title"], track["artist"])
+        large_image = art_url if art_url else APPLE_MUSIC_ICON
+        large_text = track["album"] if track["album"] else "Apple Music"
+
         try:
             self.rpc.update(
                 activity_type=ActivityType.LISTENING,
                 details=details,
                 state=state,
-                large_image=APPLE_MUSIC_IMAGE,
-                large_text="Apple Music",
+                large_image=large_image,
+                large_text=large_text,
+                small_image=APPLE_MUSIC_ICON,
                 small_text="Paused" if track["paused"] else "Playing",
-                start=None,
-                end=None,
             )
             icon = "[Paused] " if track["paused"] else "[Playing] "
             log.info("%s%s - %s", icon, track["title"], track["artist"])

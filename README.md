@@ -8,8 +8,9 @@ Display your currently playing Apple Music track as Discord Rich Presence on Win
 ## How it works
 
 1. Reads the currently playing track from Windows Media Session API (no scraping, no hacks)
-2. Sends the song title, artist, and album to Discord via local Rich Presence RPC
-3. Polls every 5 seconds and updates automatically when the track changes
+2. Looks up the album cover art via the iTunes Search API
+3. Sends the song title, artist, album, and cover art to Discord via local Rich Presence RPC
+4. Polls every 5 seconds and updates automatically when the track changes
 
 ## Setup
 
@@ -18,7 +19,6 @@ Display your currently playing Apple Music track as Discord Rich Presence on Win
 1. Go to [discord.com/developers/applications](https://discord.com/developers/applications)
 2. Click **New Application** and give it a name (e.g. "Apple Music")
 3. Copy the **Application ID** from the General Information page
-4. *(Optional)* Under **Rich Presence -> Art Assets**, upload an image named `apple_music` to use as the large icon
 
 ### 2. Install
 
@@ -65,7 +65,6 @@ Press `Ctrl+C` to stop.
 ## Known Limitations
 
 - **No elapsed time shown.** Apple Music web does not reliably report song position/duration to the browser, so timestamps are not included.
-- **Album art is not shown.** Discord Rich Presence requires pre-uploaded images or external URLs. Dynamic album art from Apple Music is not currently supported.
 - **The Discord Rich Presence timer updates visually every ~15 seconds.** This is a Discord client limitation that applies to all Rich Presence apps.
 
 ## Troubleshooting
