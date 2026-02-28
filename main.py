@@ -23,6 +23,7 @@ APPLE_MUSIC_ICON = (
     "Apple_Music_icon.svg/512px-Apple_Music_icon.svg.png"
 )
 ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
+DEEZER_SEARCH_URL = "https://api.deezer.com/search"
 ART_CACHE_MAX = 256
 
 # -- Logging ----------------------------------------------------------------- #
@@ -98,9 +99,8 @@ _art_cache: dict[str, str] = {}
 
 
 def get_album_art(title: str, artist: str, album: str = "") -> str | None:
-    """Look up album cover URL from the iTunes Search API.
+    """Look up album cover URL, trying iTunes then Deezer.
 
-    Tries song-level search first, then falls back to album search.
     Results are cached in memory. Lookup failures are not cached so they
     can be retried on the next poll.
     """
@@ -108,9 +108,11 @@ def get_album_art(title: str, artist: str, album: str = "") -> str | None:
     if cache_key in _art_cache:
         return _art_cache[cache_key]
 
-    art_url = _itunes_search(f"{artist} {title}", "song")
-    if not art_url and album:
-        art_url = _itunes_search(f"{artist} {album}", "album")
+    art_url = (
+        _itunes_search(f"{artist} {title}", "song")
+        or (album and _itunes_search(f"{artist} {album}", "album"))
+        or _deezer_search(f"{artist} {title}")
+    )
 
     if art_url:
         if len(_art_cache) >= ART_CACHE_MAX:
@@ -140,6 +142,24 @@ def _itunes_search(term: str, entity: str) -> str | None:
             return art_url.replace("100x100bb", "600x600bb")
     except Exception as exc:
         log.debug("iTunes search failed (%s): %s", entity, exc)
+    return None
+
+
+def _deezer_search(term: str) -> str | None:
+    """Query the Deezer API as a fallback for album art."""
+    try:
+        url = f"{DEEZER_SEARCH_URL}?q={urllib.parse.quote(term)}&limit=1"
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "AppleMusicDiscord/1.0"},
+        )
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            data = json.loads(resp.read())
+
+        results = data.get("data", [])
+        if results:
+            return results[0].get("album", {}).get("cover_big", None)
+    except Exception as exc:
+        log.debug("Deezer search failed: %s", exc)
     return None
 
 
