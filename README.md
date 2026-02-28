@@ -2,6 +2,8 @@
 
 Display your currently playing Apple Music track as Discord Rich Presence on Windows -- complete with album art, artist info, and playback status.
 
+> **Note:** This app uses the Windows Media Session API, which detects the active media session from any source (browser, native app, etc.). If you're playing media from another app at the same time, it may show that instead of Apple Music.
+
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
 ![License](https://img.shields.io/badge/license-MIT-green)

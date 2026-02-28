@@ -293,7 +293,7 @@ class DiscordPresence:
                 details=details,
                 state=state,
                 large_image=art_url or APPLE_MUSIC_ICON,
-                large_text=track["album"] or "Apple Music",
+                large_text=track["album"] if track["album"] else None,
                 small_image=APPLE_MUSIC_ICON,
                 small_text="Paused" if track["paused"] else "Playing",
             )
