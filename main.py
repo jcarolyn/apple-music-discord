@@ -16,7 +16,7 @@ from pypresence.types import ActivityType
 load_dotenv()
 
 DISCORD_APP_ID = os.getenv("DISCORD_APP_ID")
-POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "5"))
+POLL_INTERVAL = int(os.getenv("POLL_INTERVAL", "2"))
 
 APPLE_MUSIC_ICON = (
     "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/"
@@ -198,9 +198,7 @@ class DiscordPresence:
             state += f" on {track['album']}"
         state = state[:128]
 
-        # Use cached art if available; fetch happens after the update
-        cache_key = f"{track['title']}|{track['artist']}"
-        art_url = _art_cache.get(cache_key)
+        art_url = get_album_art(track["title"], track["artist"])
 
         try:
             self.rpc.update(
@@ -218,25 +216,6 @@ class DiscordPresence:
         except Exception as exc:
             log.warning("Failed to update presence: %s", exc)
             self.disconnect()
-            return
-
-        # Fetch art after sending presence so the first update is instant.
-        # If art is found, trigger a second update with the cover image.
-        if not art_url:
-            fetched = get_album_art(track["title"], track["artist"])
-            if fetched:
-                try:
-                    self.rpc.update(
-                        activity_type=ActivityType.LISTENING,
-                        details=details,
-                        state=state,
-                        large_image=fetched,
-                        large_text=track["album"] or "Apple Music",
-                        small_image=APPLE_MUSIC_ICON,
-                        small_text="Paused" if track["paused"] else "Playing",
-                    )
-                except Exception:
-                    pass
 
 
 # -- Main -------------------------------------------------------------------- #

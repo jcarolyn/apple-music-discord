@@ -10,7 +10,7 @@ Display your currently playing Apple Music track as Discord Rich Presence on Win
 1. Reads the currently playing track from Windows Media Session API (no scraping, no hacks)
 2. Looks up the album cover art via the iTunes Search API
 3. Sends the song title, artist, album, and cover art to Discord via local Rich Presence RPC
-4. Polls every 5 seconds and updates automatically when the track changes
+4. Polls every 2 seconds and updates automatically when the track changes
 
 ## Setup
 
@@ -60,7 +60,7 @@ Press `Ctrl+C` to stop.
 | Environment Variable | Default | Description |
 |---------------------|---------|-------------|
 | `DISCORD_APP_ID`    | *(required)* | Your Discord Application ID |
-| `POLL_INTERVAL`     | `5`     | Seconds between track checks |
+| `POLL_INTERVAL`     | `2`     | Seconds between track checks |
 
 ## Known Limitations
 
@@ -80,7 +80,7 @@ Press `Ctrl+C` to stop.
 
 ### General
 
-- **Track detection has a ~5 second delay.** The app polls every 5 seconds (configurable via `POLL_INTERVAL`), so there is a short lag when switching songs.
+- **Track detection has a ~2 second delay.** The app polls every 2 seconds (configurable via `POLL_INTERVAL`), so there is a short lag when switching songs.
 - **Requires an internet connection** for album art lookups (the iTunes Search API). Track detection itself works offline.
 - **Only detects the system's active media session.** If multiple media players are running, only the one Windows considers "current" will be shown.
 
