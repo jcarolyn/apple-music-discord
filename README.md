@@ -19,8 +19,9 @@ For best results, play Apple Music in a single browser and select that browser a
 - **Auto-reconnect**: Reconnects automatically if Discord restarts
 - **Lightweight**: Single Python script, minimal resource usage
 
-<!-- Add a screenshot here if you have one: -->
-<!-- ![Screenshot](assets/screenshot.png) -->
+<p align="center">
+  <img src="assets/screenshot.png" alt="Screenshot" />
+</p>
 
 ## Setup
 
