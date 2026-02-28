@@ -7,6 +7,7 @@ import time
 
 from dotenv import load_dotenv
 from pypresence import Presence
+from pypresence.types import ActivityType
 
 load_dotenv()
 
@@ -156,11 +157,14 @@ class DiscordPresence:
 
         try:
             self.rpc.update(
+                activity_type=ActivityType.LISTENING,
                 details=details,
                 state=state,
                 large_image=APPLE_MUSIC_IMAGE,
                 large_text="Apple Music",
                 small_text="Paused" if track["paused"] else "Playing",
+                start=None,
+                end=None,
             )
             icon = "[Paused] " if track["paused"] else "[Playing] "
             log.info("%s%s - %s", icon, track["title"], track["artist"])
