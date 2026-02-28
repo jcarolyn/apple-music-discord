@@ -171,11 +171,32 @@ def _deezer_search(artist: str, title: str) -> str | None:
 
 
 def _fuzzy_match(expected: str, actual: str) -> bool:
-    """Check if two strings reasonably match, ignoring case and punctuation."""
-    def normalize(s: str) -> str:
-        return "".join(c.lower() for c in s if c.isalnum() or c == " ").strip()
-    a, b = normalize(expected), normalize(actual)
-    return a in b or b in a
+    """Check if two strings reasonably match.
+
+    Matches are case/punctuation insensitive. Allows for minor suffixes
+    like '(feat. X)' but rejects remixes, DJ mixes, and other variants
+    unless the original title also contains those terms.
+    """
+    a = _normalize(expected)
+    b = _normalize(actual)
+    if a == b:
+        return True
+    # Allow 'feat' suffixes: "Song (feat. X)" matches "Song"
+    if a.startswith(b) or b.startswith(a):
+        longer, shorter = (a, b) if len(a) > len(b) else (b, a)
+        suffix = longer[len(shorter):].strip()
+        # Reject if the suffix indicates a remix/mix/version
+        reject = ("remix", "mixed", "mix", "version", "edit", "live")
+        if any(word in suffix for word in reject):
+            return False
+        return True
+    return False
+
+
+def _normalize(s: str) -> str:
+    """Lowercase, strip punctuation, collapse whitespace."""
+    cleaned = "".join(c.lower() if c.isalnum() or c == " " else " " for c in s)
+    return " ".join(cleaned.split())
 
 
 # -- Discord presence -------------------------------------------------------- #
