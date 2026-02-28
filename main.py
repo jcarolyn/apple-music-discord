@@ -1,3 +1,23 @@
+"""Apple Music -> Discord Rich Presence
+
+Displays the currently playing Apple Music track as Discord Rich Presence
+on Windows, including song title, artist, album, and album cover art.
+
+How it works:
+  1. Polls the Windows Media Session API every few seconds for the current
+     track. Runs in a subprocess to isolate winrt COM crashes that can
+     occur when the active media session changes.
+  2. Looks up album cover art from the iTunes Search API, with Deezer as
+     a fallback. Both sources validate the returned artist and title to
+     avoid showing art from the wrong song. Results are cached in memory.
+  3. Sends track info and cover art to Discord via local Rich Presence RPC.
+  4. Auto-reconnects if Discord restarts or the connection drops.
+     Clears the presence when nothing is playing.
+
+Usage:
+  Set DISCORD_APP_ID in .env, then: python main.py
+"""
+
 import json
 import logging
 import os
