@@ -1,8 +1,10 @@
 # Apple Music -> Discord Rich Presence
 
+A small personal project to show my friends what music I'm listening to on Discord -- since Apple Music doesn't have a native Discord integration like Spotify does.
+
 Display your currently playing Apple Music track as Discord Rich Presence on Windows -- complete with album art, artist info, and playback status.
 
-> **Note:** This app uses the Windows Media Session API, which detects the active media session from any source (browser, native app, etc.). If you're playing media from another app at the same time, it may show that instead of Apple Music.
+> **v0.1** -- Currently supports Edge browser only. Media from other browsers or apps is filtered out. Since the app relies on the Windows Media Session API, it cannot distinguish Apple Music from other media played in the same browser -- if you're watching YouTube in Edge while Apple Music is playing, it may pick up the wrong session.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -120,14 +122,15 @@ If none of the sources find a match (e.g. unreleased demos, very obscure tracks)
 
 - **Track detection has a ~2 second delay** due to the polling interval (configurable).
 - **Requires an internet connection** for album art lookups. Track detection itself works offline.
-- **Only detects the system's active media session.** If multiple media players are running, only the one Windows considers "current" will be shown.
+- **Only detects media from Edge browser.** Chrome and Firefox support is planned. Other media players and apps are filtered out.
+- **Cannot distinguish Apple Music from other Edge media.** If you're playing media from another site in Edge (e.g. YouTube), the app may pick up that session instead.
 
 ## Troubleshooting
 
 | Problem | Solution |
 |---------|----------|
 | "Could not connect to Discord" | Make sure the Discord desktop app is running (not the browser version) |
-| No track detected | Make sure Apple Music is actively playing in your browser (Edge or Chrome) |
+| No track detected | Make sure Apple Music is actively playing in Edge |
 | Rich Presence not showing | Check your profile popup or ask a friend -- Discord doesn't always show your own presence to you |
 | "The pipe was closed" | Discord was restarted. The app will automatically reconnect within a few seconds |
 | Album art not showing | The track may not be indexed in iTunes or Deezer. The Apple Music icon is used as a fallback |
@@ -135,6 +138,9 @@ If none of the sources find a match (e.g. unreleased demos, very obscure tracks)
 ## Roadmap
 
 - [ ] Accurate song position timestamps (requires native Apple Music app from Microsoft Store instead of web player)
+- [ ] Chrome browser support
+- [ ] Firefox browser support
+- [ ] Native Apple Music app (Microsoft Store) support
 - [ ] Album art from the Windows Media Session thumbnail as a final fallback
 - [ ] Support for macOS
 - [ ] Optional system tray icon with minimize-to-tray

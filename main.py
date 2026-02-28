@@ -65,32 +65,42 @@ log = logging.getLogger("apple-music-discord")
 # Runs in a subprocess to isolate winrt COM access-violation crashes that
 # can occur when the active media session changes during a poll.
 
+# Supported browser source IDs for the Windows Media Session API.
+# Only media from these sources will be detected.
+ALLOWED_SOURCES = {"msedge"}  # TODO: add chrome.exe, firefox.exe after testing
+
 _MEDIA_SCRIPT = r"""
-import asyncio, json
+import asyncio, json, sys
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as Mgr,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
 )
+
+ALLOWED = set(sys.argv[1:])
+
 async def main():
     mgr = await Mgr.request_async()
-    session = mgr.get_current_session()
-    if not session:
-        print("null")
+    sessions = mgr.get_sessions()
+    for i in range(sessions.size):
+        session = sessions.get_at(i)
+        source = (session.source_app_user_model_id or "").lower()
+        if ALLOWED and source not in ALLOWED:
+            continue
+        info = session.get_playback_info()
+        if not info or info.playback_status not in (Status.PLAYING, Status.PAUSED):
+            continue
+        props = await session.try_get_media_properties_async()
+        if not props or not props.title:
+            continue
+        print(json.dumps({
+            "title": props.title,
+            "artist": props.artist or "Unknown Artist",
+            "album": props.album_title or "",
+            "paused": info.playback_status == Status.PAUSED,
+            "source": source,
+        }))
         return
-    info = session.get_playback_info()
-    if not info or info.playback_status not in (Status.PLAYING, Status.PAUSED):
-        print("null")
-        return
-    props = await session.try_get_media_properties_async()
-    if not props or not props.title:
-        print("null")
-        return
-    print(json.dumps({
-        "title": props.title,
-        "artist": props.artist or "Unknown Artist",
-        "album": props.album_title or "",
-        "paused": info.playback_status == Status.PAUSED,
-    }))
+    print("null")
 asyncio.run(main())
 """
 
@@ -98,9 +108,9 @@ asyncio.run(main())
 def get_media_info() -> dict | None:
     """Detect the current media session via a subprocess."""
     try:
+        cmd = [sys.executable, "-c", _MEDIA_SCRIPT] + list(ALLOWED_SOURCES)
         result = subprocess.run(
-            [sys.executable, "-c", _MEDIA_SCRIPT],
-            capture_output=True, text=True, timeout=10,
+            cmd, capture_output=True, text=True, timeout=10,
         )
         output = result.stdout.strip()
         if result.returncode != 0 or not output or output == "null":
@@ -293,7 +303,7 @@ class DiscordPresence:
                 details=details,
                 state=state,
                 large_image=art_url or APPLE_MUSIC_ICON,
-                large_text=track["album"] if track["album"] else None,
+                large_text=track["album"] or "Apple Music",
                 small_image=APPLE_MUSIC_ICON,
                 small_text="Paused" if track["paused"] else "Playing",
             )
