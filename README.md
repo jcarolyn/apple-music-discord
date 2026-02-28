@@ -4,7 +4,7 @@ A small personal project to show my friends what music I'm listening to on Disco
 
 Detects the currently playing track from Apple Music in your browser (Edge, Chrome, or Firefox) and displays it as Discord Rich Presence on Windows, complete with album art, artist info, and playback status.
 
-> **v0.1** | The app filters for browser sessions only (Edge, Chrome, Firefox). Non-browser apps like Spotify or VLC are ignored. However, the Windows Media Session API does not expose which website media is coming from, so the app cannot distinguish Apple Music from other media in the same browser (e.g. a YouTube video in another tab). For best results, only play Apple Music in your browser while using this app. Chrome and Firefox have not been fully tested.
+> **v0.1** | This app uses the Windows Media Session API, which detects the active media session on your system. It works with Apple Music in any browser (Edge, Chrome, Firefox) but cannot distinguish Apple Music from other media sources. For best results, only play Apple Music while using this app.
 
 ![Python](https://img.shields.io/badge/python-3.10+-blue)
 ![Platform](https://img.shields.io/badge/platform-Windows-lightgrey)
@@ -65,11 +65,11 @@ Press `Ctrl+C` to stop.
 
 ## Known Limitations
 
-- **The elapsed timer is not the actual song position.** It counts from when the track was first detected. Seeking, rewinding, restarting, or pausing does not affect the timer. This is because Apple Music's web player does not reliably report position data.
+- **The elapsed timer is not the actual song position.** It counts from when the track was first detected. Seeking, rewinding, or restarting does not affect the timer. This is because Apple Music's web player does not reliably report position data.
 - **Song details only visible on profile click.** The member list shows "Listening to Apple Music" but song title, artist, album art, etc. are only shown in the Rich Presence card. This is a Discord limitation.
 - **Album art may not always be available or correct.** The search APIs return the best match, which may differ for remixes or obscure tracks. Unreleased or very niche tracks fall back to the Apple Music icon.
-- **Cannot distinguish Apple Music from other browser media.** If other media is playing in the same browser, the app may pick that up instead.
-- **Chrome and Firefox have not been fully tested** and may have issues.
+- **Cannot distinguish Apple Music from other media.** The app detects the active media session on your system. If other media is playing (e.g. YouTube, Spotify), it may pick that up instead.
+- **Presence is cleared when paused.** Discord shows an elapsed timer that cannot be paused, so the presence is removed entirely when playback is paused to avoid showing incorrect time.
 
 ## Troubleshooting
 
