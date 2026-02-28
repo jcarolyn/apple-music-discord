@@ -64,8 +64,24 @@ Press `Ctrl+C` to stop.
 
 ## Known Limitations
 
-- **No elapsed time shown.** Apple Music web does not reliably report song position/duration to the browser, so timestamps are not included.
-- **The Discord Rich Presence timer updates visually every ~15 seconds.** This is a Discord client limitation that applies to all Rich Presence apps.
+### Elapsed Time / Timestamps
+
+- **The elapsed timer is not the actual song position.** Discord shows a timer counting from when the track was first detected, not from where the song actually is. This is because Apple Music's web player does not reliably report song position or duration to the browser's Media Session API.
+- **Seeking within a song does not update the timer.** If you skip ahead or rewind, the elapsed time keeps counting from when the track started playing.
+- **Restarting the same song does not reset the timer.** The app only updates Discord when the track changes (different title or artist). Replaying the same song looks identical to continuing it.
+- **Pausing does not stop the timer.** Discord continues counting elapsed time even while paused. The presence does update to show "Paused" in the tooltip.
+- **The Discord timer only redraws every ~15 seconds.** This is a Discord client limitation that applies to all Rich Presence apps.
+
+### Display
+
+- **The member list only shows "Listening to Apple Music."** Song details (title, artist, album, cover art) are only visible when someone clicks your profile. This is a Discord limitation -- only Spotify has a native inline integration.
+- **Album art may occasionally be wrong.** The iTunes Search API returns the best match for the song title + artist, which may not always be the exact version or remix you are listening to.
+
+### General
+
+- **Track detection has a ~5 second delay.** The app polls every 5 seconds (configurable via `POLL_INTERVAL`), so there is a short lag when switching songs.
+- **Requires an internet connection** for album art lookups (the iTunes Search API). Track detection itself works offline.
+- **Only detects the system's active media session.** If multiple media players are running, only the one Windows considers "current" will be shown.
 
 ## Troubleshooting
 

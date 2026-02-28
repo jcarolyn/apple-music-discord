@@ -165,6 +165,7 @@ class DiscordPresence:
             return True
         if (track["title"] != self._last_track["title"]
                 or track["artist"] != self._last_track["artist"]
+                or track["album"] != self._last_track["album"]
                 or track["paused"] != self._last_track["paused"]):
             return True
         return False
