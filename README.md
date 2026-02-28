@@ -93,8 +93,7 @@ Press `Ctrl+C` to stop.
 Album art is fetched dynamically using a multi-source search:
 
 1. **iTunes Search API** -- song-level search by artist + title
-2. **iTunes Search API** -- album-level fallback by artist + album name
-3. **Deezer Search API** -- catches tracks not indexed in iTunes (e.g. demos, indie releases)
+2. **Deezer Search API** -- catches tracks not indexed in iTunes (e.g. demos, indie releases)
 
 No API keys are required. Art URLs are cached in memory so the same song won't trigger repeated lookups.
 

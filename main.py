@@ -110,7 +110,6 @@ def get_album_art(title: str, artist: str, album: str = "") -> str | None:
 
     art_url = (
         _itunes_search(f"{artist} {title}", "song")
-        or (album and _itunes_search(f"{artist} {album}", "album"))
         or _deezer_search(f"{artist} {title}")
     )
 
