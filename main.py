@@ -65,42 +65,93 @@ log = logging.getLogger("apple-music-discord")
 # Runs in a subprocess to isolate winrt COM access-violation crashes that
 # can occur when the active media session changes during a poll.
 
-_MEDIA_SCRIPT = r"""
+# Known browser source IDs (may vary per installation)
+KNOWN_SOURCES = {
+    "msedge": "Microsoft Edge",
+    "chrome.exe": "Google Chrome",
+    "308046b0af4a39cb": "Firefox (likely)",
+    "e7cf176e110c211b": "Firefox (likely)",
+}
+
+_LIST_SOURCES_SCRIPT = r"""
 import asyncio, json
+from winrt.windows.media.control import (
+    GlobalSystemMediaTransportControlsSessionManager as Mgr,
+)
+async def main():
+    mgr = await Mgr.request_async()
+    sessions = mgr.get_sessions()
+    sources = []
+    for i in range(sessions.size):
+        s = sessions.get_at(i)
+        sources.append(s.source_app_user_model_id or "unknown")
+    print(json.dumps(sources))
+asyncio.run(main())
+"""
+
+_MEDIA_SCRIPT = r"""
+import asyncio, json, sys
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as Mgr,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
 )
+ALLOWED = sys.argv[1] if len(sys.argv) > 1 else None
 async def main():
     mgr = await Mgr.request_async()
-    session = mgr.get_current_session()
-    if not session:
-        print("null")
+    sessions = mgr.get_sessions()
+    for i in range(sessions.size):
+        session = sessions.get_at(i)
+        source = session.source_app_user_model_id or ""
+        if ALLOWED and source.lower() != ALLOWED.lower():
+            continue
+        info = session.get_playback_info()
+        if not info or info.playback_status not in (Status.PLAYING, Status.PAUSED):
+            continue
+        props = await session.try_get_media_properties_async()
+        if not props or not props.title:
+            continue
+        print(json.dumps({
+            "title": props.title,
+            "artist": props.artist or "Unknown Artist",
+            "album": props.album_title or "",
+            "paused": info.playback_status == Status.PAUSED,
+        }))
         return
-    info = session.get_playback_info()
-    if not info or info.playback_status not in (Status.PLAYING, Status.PAUSED):
-        print("null")
-        return
-    props = await session.try_get_media_properties_async()
-    if not props or not props.title:
-        print("null")
-        return
-    print(json.dumps({
-        "title": props.title,
-        "artist": props.artist or "Unknown Artist",
-        "album": props.album_title or "",
-        "paused": info.playback_status == Status.PAUSED,
-    }))
+    print("null")
 asyncio.run(main())
 """
+
+# The selected source ID, set during startup
+_selected_source: str | None = None
+
+
+def _get_friendly_name(source: str) -> str:
+    """Return a human-readable name for a known source ID."""
+    return KNOWN_SOURCES.get(source.lower(), source)
+
+
+def list_media_sources() -> list[str]:
+    """List all active media session source IDs."""
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", _LIST_SOURCES_SCRIPT],
+            capture_output=True, text=True, timeout=10,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return json.loads(result.stdout.strip())
+    except Exception:
+        pass
+    return []
 
 
 def get_media_info() -> dict | None:
     """Detect the current media session via a subprocess."""
     try:
+        cmd = [sys.executable, "-c", _MEDIA_SCRIPT]
+        if _selected_source:
+            cmd.append(_selected_source)
         result = subprocess.run(
-            [sys.executable, "-c", _MEDIA_SCRIPT],
-            capture_output=True, text=True, timeout=10,
+            cmd, capture_output=True, text=True, timeout=10,
         )
         output = result.stdout.strip()
         if result.returncode != 0 or not output or output == "null":
@@ -311,6 +362,8 @@ class DiscordPresence:
 # -- Main -------------------------------------------------------------------- #
 
 def main():
+    global _selected_source
+
     if not DISCORD_APP_ID:
         log.error(
             "DISCORD_APP_ID not set. "
@@ -319,9 +372,40 @@ def main():
         )
         sys.exit(1)
 
-    presence = DiscordPresence(DISCORD_APP_ID)
-
     log.info("Apple Music Discord Presence")
+
+    # Source selection
+    print("\nDetecting media sources...")
+    sources = list_media_sources()
+    if sources:
+        print("\nAvailable media sources:")
+        for i, src in enumerate(sources, 1):
+            name = _get_friendly_name(src)
+            if name != src:
+                print(f"  {i}. {name} ({src})")
+            else:
+                print(f"  {i}. {src}")
+        print(f"  {len(sources) + 1}. All sources (no filter)")
+
+        choice = input(f"\nSelect a source [1-{len(sources) + 1}]: ").strip()
+        try:
+            idx = int(choice)
+            if 1 <= idx <= len(sources):
+                _selected_source = sources[idx - 1]
+                log.info("Filtering for: %s", _get_friendly_name(_selected_source))
+            else:
+                _selected_source = None
+                log.info("No filter, detecting all sources")
+        except ValueError:
+            _selected_source = None
+            log.info("No filter, detecting all sources")
+    else:
+        print("\nNo active media sources found. Play something first,")
+        print("or press Enter to start without a filter.")
+        input()
+        _selected_source = None
+
+    presence = DiscordPresence(DISCORD_APP_ID)
     log.info("Polling every %ds. Press Ctrl+C to stop.", POLL_INTERVAL)
 
     try:
