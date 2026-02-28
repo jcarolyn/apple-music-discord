@@ -68,7 +68,10 @@ log = logging.getLogger("apple-music-discord")
 # Known browser source IDs (may vary per installation)
 KNOWN_SOURCES = {
     "msedge": "Microsoft Edge",
-    "chrome.exe": "Google Chrome",
+    "chrome": "Google Chrome",
+    "google.chrome": "Google Chrome (enterprise)",
+    "chromebeta": "Google Chrome Beta",
+    "chromecanary": "Google Chrome Canary",
     "308046b0af4a39cb": "Firefox (likely)",
     "e7cf176e110c211b": "Firefox (likely)",
 }
