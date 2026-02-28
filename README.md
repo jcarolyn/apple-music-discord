@@ -64,9 +64,9 @@ Press `Ctrl+C` to stop.
 
 ## Known Limitations
 
-- **Use a Chromium-based browser (Edge, Chrome) for Apple Music.** Firefox does not send continuous playback position updates to the Windows Media Session API, so the elapsed time shown in Discord will be inaccurate. Edge and Chrome work correctly.
-- **The Discord Rich Presence timer updates visually every ~15 seconds.** This is a Discord client limitation -- the underlying timestamp is accurate, but Discord only redraws the timer display periodically, not every second.
+- **No elapsed time shown.** Apple Music web does not reliably report song position/duration to the browser, so timestamps are not included.
 - **Album art is not shown.** Discord Rich Presence requires pre-uploaded images or external URLs. Dynamic album art from Apple Music is not currently supported.
+- **The Discord Rich Presence timer updates visually every ~15 seconds.** This is a Discord client limitation that applies to all Rich Presence apps.
 
 ## Troubleshooting
 

@@ -36,7 +36,6 @@ log = logging.getLogger("apple-music-discord")
 
 _MEDIA_SCRIPT = r"""
 import asyncio, json
-from datetime import datetime, timezone
 from winrt.windows.media.control import (
     GlobalSystemMediaTransportControlsSessionManager as M,
     GlobalSystemMediaTransportControlsSessionPlaybackStatus as S,
@@ -55,23 +54,11 @@ async def main():
     if not props or not props.title:
         print("null")
         return
-    tl = session.get_timeline_properties()
-    position = tl.position.total_seconds()
-    # position is a snapshot from last_updated_time; adjust for elapsed time
-    if pb.playback_status == S.PLAYING:
-        now = datetime.now(timezone.utc)
-        elapsed = (now - tl.last_updated_time).total_seconds()
-        position = position + max(0, elapsed)
-    duration = tl.end_time.total_seconds()
-    if duration > 0:
-        position = min(position, duration)
     print(json.dumps({
         "title": props.title,
         "artist": props.artist or "Unknown Artist",
         "album": props.album_title or "",
         "paused": pb.playback_status == S.PAUSED,
-        "position": position,
-        "duration": duration,
     }))
 asyncio.run(main())
 """
@@ -137,31 +124,10 @@ class DiscordPresence:
     def _needs_update(self, track: dict) -> bool:
         if self._last_track is None:
             return True
-        # Track or pause state changed
         if (track["title"] != self._last_track["title"]
                 or track["artist"] != self._last_track["artist"]
                 or track["paused"] != self._last_track["paused"]):
             return True
-
-        if not track["paused"] and "_update_time" in self._last_track:
-            elapsed_real = time.time() - self._last_track["_update_time"]
-
-            # Wake from sleep: poll gap much larger than expected
-            if elapsed_real > POLL_INTERVAL * 3:
-                log.info("Detected wake from sleep, refreshing timestamp")
-                return True
-
-            # Detect seek or song repeat: position jumped vs expected
-            expected = self._last_track["position"] + elapsed_real
-            diff = track["position"] - expected
-            # Position jumped forward/backward significantly
-            if abs(diff) > 10:
-                return True
-            # Song restarted (position near 0 but we expected further along)
-            if track["position"] < 5 and expected > 15:
-                log.info("Detected song restart/repeat")
-                return True
-
         return False
 
     def update(self, track: dict | None):
@@ -188,11 +154,6 @@ class DiscordPresence:
             state += " on " + track["album"]
         state = state[:128]
 
-        kwargs = {}
-        if not track["paused"] and track["duration"] > 0:
-            now = time.time()
-            kwargs["start"] = int(now - track["position"])
-
         try:
             self.rpc.update(
                 details=details,
@@ -200,11 +161,9 @@ class DiscordPresence:
                 large_image=APPLE_MUSIC_IMAGE,
                 large_text="Apple Music",
                 small_text="Paused" if track["paused"] else "Playing",
-                **kwargs,
             )
             icon = "[Paused] " if track["paused"] else "[Playing] "
-            log.info("%s%s - %s (pos: %ds)", icon, track["title"], track["artist"], int(track["position"]))
-            track["_update_time"] = time.time()
+            log.info("%s%s - %s", icon, track["title"], track["artist"])
             self._last_track = track.copy()
         except Exception as exc:
             log.warning("Failed to update presence: %s", exc)
