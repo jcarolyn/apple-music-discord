@@ -11,6 +11,8 @@ from dotenv import load_dotenv
 from pypresence import Presence
 from pypresence.types import ActivityType
 
+# -- Configuration ----------------------------------------------------------- #
+
 load_dotenv()
 
 DISCORD_APP_ID = os.getenv("DISCORD_APP_ID")
@@ -20,39 +22,42 @@ APPLE_MUSIC_ICON = (
     "https://upload.wikimedia.org/wikipedia/commons/thumb/5/5f/"
     "Apple_Music_icon.svg/512px-Apple_Music_icon.svg.png"
 )
-
 ITUNES_SEARCH_URL = "https://itunes.apple.com/search"
+ART_CACHE_MAX = 256
+
+# -- Logging ----------------------------------------------------------------- #
+
+sys.stdout.reconfigure(encoding="utf-8")
 
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s  %(message)s",
     datefmt="%H:%M:%S",
     handlers=[
-        logging.StreamHandler(
-            open(sys.stdout.fileno(), mode="w", encoding="utf-8", closefd=False)
-        ),
+        logging.StreamHandler(sys.stdout),
         logging.FileHandler("app.log", encoding="utf-8"),
     ],
 )
 log = logging.getLogger("apple-music-discord")
 
-
-# -- Media detection (subprocess to isolate winrt COM crashes) --------------- #
+# -- Media detection --------------------------------------------------------- #
+# Runs in a subprocess to isolate winrt COM access-violation crashes that
+# can occur when the active media session changes during a poll.
 
 _MEDIA_SCRIPT = r"""
 import asyncio, json
 from winrt.windows.media.control import (
-    GlobalSystemMediaTransportControlsSessionManager as M,
-    GlobalSystemMediaTransportControlsSessionPlaybackStatus as S,
+    GlobalSystemMediaTransportControlsSessionManager as Mgr,
+    GlobalSystemMediaTransportControlsSessionPlaybackStatus as Status,
 )
 async def main():
-    mgr = await M.request_async()
+    mgr = await Mgr.request_async()
     session = mgr.get_current_session()
     if not session:
         print("null")
         return
-    pb = session.get_playback_info()
-    if not pb or pb.playback_status not in (S.PLAYING, S.PAUSED):
+    info = session.get_playback_info()
+    if not info or info.playback_status not in (Status.PLAYING, Status.PAUSED):
         print("null")
         return
     props = await session.try_get_media_properties_async()
@@ -63,40 +68,41 @@ async def main():
         "title": props.title,
         "artist": props.artist or "Unknown Artist",
         "album": props.album_title or "",
-        "paused": pb.playback_status == S.PAUSED,
+        "paused": info.playback_status == Status.PAUSED,
     }))
 asyncio.run(main())
 """
 
 
 def get_media_info() -> dict | None:
-    """Run media detection in a subprocess to isolate winrt COM crashes."""
+    """Detect the current media session via a subprocess."""
     try:
         result = subprocess.run(
             [sys.executable, "-c", _MEDIA_SCRIPT],
             capture_output=True, text=True, timeout=10,
         )
-        if result.returncode != 0:
-            return None
         output = result.stdout.strip()
-        if not output or output == "null":
+        if result.returncode != 0 or not output or output == "null":
             return None
         return json.loads(output)
     except subprocess.TimeoutExpired:
         log.warning("Media detection timed out")
-        return None
     except Exception as exc:
         log.warning("Media detection error: %s", exc)
-        return None
+    return None
 
 
-# -- Album art via iTunes Search API ----------------------------------------- #
+# -- Album art --------------------------------------------------------------- #
 
 _art_cache: dict[str, str] = {}
 
 
 def get_album_art(title: str, artist: str) -> str | None:
-    """Look up album cover URL from the iTunes Search API."""
+    """Look up album cover URL from the iTunes Search API.
+
+    Results are cached in memory. Lookup failures are not cached so they
+    can be retried on the next poll.
+    """
     cache_key = f"{title}|{artist}"
     if cache_key in _art_cache:
         return _art_cache[cache_key]
@@ -108,23 +114,28 @@ def get_album_art(title: str, artist: str) -> str | None:
             "limit": "1",
         })
         url = f"{ITUNES_SEARCH_URL}?{query}"
-        req = urllib.request.Request(url, headers={"User-Agent": "AppleMusicDiscord/1.0"})
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "AppleMusicDiscord/1.0"},
+        )
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
 
         if data.get("resultCount", 0) > 0:
             art_url = data["results"][0].get("artworkUrl100", "")
-            # upscale to 600x600
             art_url = art_url.replace("100x100bb", "600x600bb")
+            if len(_art_cache) >= ART_CACHE_MAX:
+                _art_cache.pop(next(iter(_art_cache)))
             _art_cache[cache_key] = art_url
             return art_url
     except Exception as exc:
         log.debug("Album art lookup failed: %s", exc)
-
     return None
 
 
 # -- Discord presence -------------------------------------------------------- #
+
+_TRACK_FIELDS = ("title", "artist", "album", "paused")
+
 
 class DiscordPresence:
     def __init__(self, app_id: str):
@@ -141,20 +152,16 @@ class DiscordPresence:
             log.info("Connected to Discord")
         except Exception as exc:
             log.warning("Could not connect to Discord: %s", exc)
-            self.connected = False
             self.rpc = None
+            self.connected = False
 
     def disconnect(self):
-        try:
-            if self.rpc:
-                self.rpc.clear()
-        except Exception:
-            pass
-        try:
-            if self.rpc:
-                self.rpc.close()
-        except Exception:
-            pass
+        if self.rpc:
+            for action in (self.rpc.clear, self.rpc.close):
+                try:
+                    action()
+                except Exception:
+                    pass
         self.rpc = None
         self.connected = False
         self._last_track = None
@@ -163,12 +170,9 @@ class DiscordPresence:
     def _needs_update(self, track: dict) -> bool:
         if self._last_track is None:
             return True
-        if (track["title"] != self._last_track["title"]
-                or track["artist"] != self._last_track["artist"]
-                or track["album"] != self._last_track["album"]
-                or track["paused"] != self._last_track["paused"]):
-            return True
-        return False
+        return any(
+            track[k] != self._last_track[k] for k in _TRACK_FIELDS
+        )
 
     def update(self, track: dict | None):
         if not self.connected or not self.rpc:
@@ -189,27 +193,25 @@ class DiscordPresence:
             return
 
         details = track["title"][:128]
-        state = "by " + track["artist"]
+        state = f"by {track['artist']}"
         if track["album"]:
-            state += " on " + track["album"]
+            state += f" on {track['album']}"
         state = state[:128]
 
         art_url = get_album_art(track["title"], track["artist"])
-        large_image = art_url if art_url else APPLE_MUSIC_ICON
-        large_text = track["album"] if track["album"] else "Apple Music"
 
         try:
             self.rpc.update(
                 activity_type=ActivityType.LISTENING,
                 details=details,
                 state=state,
-                large_image=large_image,
-                large_text=large_text,
+                large_image=art_url or APPLE_MUSIC_ICON,
+                large_text=track["album"] or "Apple Music",
                 small_image=APPLE_MUSIC_ICON,
                 small_text="Paused" if track["paused"] else "Playing",
             )
-            icon = "[Paused] " if track["paused"] else "[Playing] "
-            log.info("%s%s - %s", icon, track["title"], track["artist"])
+            status = "[Paused]" if track["paused"] else "[Playing]"
+            log.info("%s %s - %s", status, track["title"], track["artist"])
             self._last_track = track.copy()
         except Exception as exc:
             log.warning("Failed to update presence: %s", exc)
@@ -248,17 +250,11 @@ def main():
                 presence.disconnect()
 
             time.sleep(POLL_INTERVAL)
-
     except KeyboardInterrupt:
         pass
     finally:
         log.info("Shutting down...")
-        try:
-            if presence.rpc:
-                presence.rpc.clear()
-                presence.rpc.close()
-        except Exception:
-            pass
+        presence.disconnect()
 
 
 if __name__ == "__main__":
