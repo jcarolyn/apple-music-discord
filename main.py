@@ -109,8 +109,8 @@ def get_album_art(title: str, artist: str, album: str = "") -> str | None:
         return _art_cache[cache_key]
 
     art_url = (
-        _itunes_search(f"{artist} {title}", "song")
-        or _deezer_search(f"{artist} {title}")
+        _itunes_search(artist, title)
+        or _deezer_search(artist, title)
     )
 
     if art_url:
@@ -120,14 +120,14 @@ def get_album_art(title: str, artist: str, album: str = "") -> str | None:
     return art_url
 
 
-def _itunes_search(term: str, entity: str) -> str | None:
+def _itunes_search(artist: str, title: str) -> str | None:
     """Query the iTunes Search API and return the artwork URL if found."""
     try:
         query = urllib.parse.urlencode({
-            "term": term,
+            "term": f"{artist} {title}",
             "media": "music",
-            "entity": entity,
-            "limit": "1",
+            "entity": "song",
+            "limit": "5",
         })
         url = f"{ITUNES_SEARCH_URL}?{query}"
         req = urllib.request.Request(
@@ -136,30 +136,40 @@ def _itunes_search(term: str, entity: str) -> str | None:
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
 
-        if data.get("resultCount", 0) > 0:
-            art_url = data["results"][0].get("artworkUrl100", "")
-            return art_url.replace("100x100bb", "600x600bb")
+        for result in data.get("results", []):
+            result_artist = result.get("artistName", "")
+            if _artist_matches(artist, result_artist):
+                art_url = result.get("artworkUrl100", "")
+                return art_url.replace("100x100bb", "600x600bb")
     except Exception as exc:
-        log.debug("iTunes search failed (%s): %s", entity, exc)
+        log.debug("iTunes search failed: %s", exc)
     return None
 
 
-def _deezer_search(term: str) -> str | None:
+def _deezer_search(artist: str, title: str) -> str | None:
     """Query the Deezer API as a fallback for album art."""
     try:
-        url = f"{DEEZER_SEARCH_URL}?q={urllib.parse.quote(term)}&limit=1"
+        term = f"{artist} {title}"
+        url = f"{DEEZER_SEARCH_URL}?q={urllib.parse.quote(term)}&limit=5"
         req = urllib.request.Request(
             url, headers={"User-Agent": "AppleMusicDiscord/1.0"},
         )
         with urllib.request.urlopen(req, timeout=5) as resp:
             data = json.loads(resp.read())
 
-        results = data.get("data", [])
-        if results:
-            return results[0].get("album", {}).get("cover_big", None)
+        for result in data.get("data", []):
+            result_artist = result.get("artist", {}).get("name", "")
+            if _artist_matches(artist, result_artist):
+                return result.get("album", {}).get("cover_big", None)
     except Exception as exc:
         log.debug("Deezer search failed: %s", exc)
     return None
+
+
+def _artist_matches(expected: str, actual: str) -> bool:
+    """Check if the returned artist reasonably matches the expected one."""
+    return expected.lower().strip() in actual.lower().strip() or \
+           actual.lower().strip() in expected.lower().strip()
 
 
 # -- Discord presence -------------------------------------------------------- #
