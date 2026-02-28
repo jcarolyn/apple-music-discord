@@ -67,6 +67,7 @@ Press `Ctrl+C` to stop.
 ### Elapsed Time / Timestamps
 
 - **The elapsed timer is not the actual song position.** Discord shows a timer counting from when the track was first detected, not from where the song actually is. This is because Apple Music's web player does not reliably report song position or duration to the browser's Media Session API.
+- **The timer resets when the app restarts.** Since the timer counts from when the app first detects the track, restarting the app resets it to 0:00 even if the song is mid-way through.
 - **Seeking within a song does not update the timer.** If you skip ahead or rewind, the elapsed time keeps counting from when the track started playing.
 - **Restarting the same song does not reset the timer.** The app only updates Discord when the track changes (different title or artist). Replaying the same song looks identical to continuing it.
 - **Pausing does not stop the timer.** Discord continues counting elapsed time even while paused. The presence does update to show "Paused" in the tooltip.
